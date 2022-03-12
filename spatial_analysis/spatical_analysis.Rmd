@@ -151,3 +151,45 @@ Z <- scale(X, scale = F)
 ncol(w2)*cov(Z, w2%*%Z)/(var(Z)*sum(w2))
 ```
 
+# Spatial Regression
+```{r}
+# https://zhuanlan.zhihu.com/p/432716121
+# formulas missed in the url
+library(spatialreg)
+library(albersusa)
+library(sf)
+library(tidyverse)
+library(socviz)
+usa <- albersusa::counties_sf(proj = "laea") %>%
+  mutate(fips = as.character(fips)) %>%
+  left_join(socviz::county_data, by = c("fips" = "id"))
+
+data <- st_drop_geometry(usa)
+model <- lm(hh_income ~ black , data = data)
+summary(model)
+
+## moran
+nb <- poly2nb(usa)
+listW <- nb2listw(nb, zero.policy = T)
+
+moran.plot(usa$hh_income, listW,
+           zero.policy = T,
+           labels = F,
+           pch = 20 ,
+           cex = 0.1)
+
+## Spatial lag Model
+sl_model <- lagsarlm(hh_income ~ black, data = data,
+                     listw = listW, zero.policy = T)
+
+summary(sl_model)
+## Spatial Err model
+se_model <- errorsarlm(hh_income ~ black, data = data,
+                       listw = listW, zero.policy = T)
+summary(se_model)
+## Spatial lag err model
+sd_model <- errorsarlm(hh_income ~ black, data = data,
+                       listw = listW, zero.policy = T,
+                       Durbin = T)
+summary(sd_model)
+```
