@@ -18,6 +18,7 @@ library(raster)
 library(lattice)
 library(latticeExtra)
 library(terra)
+library(sf)
 
 ```
 
@@ -30,7 +31,7 @@ class(nc)
 attr(nc, 'sf_column')
 methods(class = 'sf')
 
-nc.no_sf <- as.data.frame(nc)
+nc.no_sf <- as.data.frame(nc)     
 class(nc.no_sf)
 
 # operation
@@ -65,6 +66,16 @@ gc;class(gc);str(gc);plot(gc)
 x <-  st_linestring(matrix(10:1,5))
 st_as_text(x)
 st_as_binary(x)
+
+# Coodinate reference transformations
+st_crs(nc)<-"+proj=longlat +datum=NAD27 +no_defs +ellps=clrk66 +nadgrids=@conus,@alaska,@ntv2_0.gsb,@ntv1_can.dat"
+#读入数据没有任何crs属性时，需要直接设置crs属性，可以赋给一个projstring字符串，也可以设置WSG84空间投影代码。
+nc.web_mercator <- st_transform(nc, 3857) 
+
+# sf to sp / sp to sf
+nc.sp <-  as(nc, "Spatial")
+nc2 <-  st_as_sf(nc.sp)
+
 ```
 
 # Spatial Dependence
@@ -292,9 +303,111 @@ data(produc)
 ```
 
 
+# uk_london_boroughs
+
+```{R}
+
+# https://zhuanlan.zhihu.com/p/283103988
+# https://zhuanlan.zhihu.com/p/285555989
+library(pacman)
+p_load(spatstat, sp, rgeos, maptools, GISTools, tmap,
+       sf, geojson, geojsonio, tmaptools, tidyverse, raster, fpc, dbscan,geomultistar)
+
+LondonBoroughs <- st_read('./spatial_analysis/data/London_Borough_Excluding_MHW.shp')
+
+```
+
+# xiangyun
+```{r}
+# https://bookdown.org/xiangyun/masr/chap-spatial-analysis.html
+
+library(sp)
+data(meuse)
+coordinates(meuse) <- ~x+y
+
+proj4string(meuse) <- CRS("+init=epsg:28992")
+plot(meuse)
+
+
+meuse = st_as_sf(meuse)
+meuse.longlat =st_transform(meuse,crs = "EPSG:4326")
+plot(meuse.longlat['zinc'],axes = TRUE)
+
+library(sf)
+nc <- st_read(system.file('shape/nc.shp', package = 'sf'))
+library(mapview)
+mapview(nc, zcol = c("SID74", "SID79"), alpha.regions = 1.0 , legend = TRUE)
+
+# redal package
+# https://github.com/geodacenter/rgeoda/
+library(rgeoda)
+library(sf)
+
+guerry <- st_read(system.file('extdata','guerry.shp', package = 'rgeoda'))
+
+queen.w <- queen_weights(guerry)
+
+lisa <- local_moran(queen.w,crm_prp)
+lisa_colors <- lisa_colors(lisa)
+lisa_labels <- lisa_labels(lisa)
+lisa_clusters <- lisa_clusters(lisa)
+
+plot(st_geometry(guerry),
+     col = sapply(lisa_clusters, function(x){
+       lisa_colors[[x + 1 ]]
+     }),
+     border = "#333333", lwd = 0.2)
+
+title(main = "Local Moran Map of Crm_prs")
+legend("bottomleft",
+  legend = lisa_labels,
+  fill = lisa_colors,
+  border = "#eeeeee"
+)
+
+# vis
+
+plot(meuse, axes = TRUE)
+crs.longlat <-  CRS("+init=epsg:4326")
+meuse.longlat <- spTransform(meuse, crs.longlat)
+plot(meuse.longlat, axes = TRUE)
+
+# raster FIJI
+install.packages('echarts4r')
+library(echarts4r)
+quakes %>% 
+  e_charts(x = long) %>% 
+  e_geo(
+    roam = TRUE,
+    boundingCoords = list(
+      c(185, -10),
+      c(165, -40)
+    )
+  ) %>% 
+  e_scatter(
+    serie = lat,
+    size = mag,
+    name = 'Fiji earthquakes',
+    coord_system = 'geo',
+  ) %>% 
+  e_visual_map(
+    serie = mag,
+    scale = e_scale,
+    inRange = list(color = terrain.colors(10))
+  ) %>% 
+  e_tooltip()
+```
+
+# user2020
+```{r}
+# https://edzer.github.io/UseR2020/
+
+```
+
+
 # ref
 ```{r, echo=FALSE}
-https://oscarperpinan.github.io/rastervis/
-https://xiangyun.rbind.io/2022/02/draw-china-maps/
+# https://oscarperpinan.github.io/rastervis/
+# https://xiangyun.rbind.io/2022/02/draw-china-maps/
   
 ```
