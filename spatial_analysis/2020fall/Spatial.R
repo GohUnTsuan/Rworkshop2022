@@ -12,7 +12,7 @@ install.packages("tmap")
 #回归
 #
 install.packages("spdep")
-#install.packages("splm")
+install.packages("splm")
 #install.packages("rgdal")
 #install.packages("spatialreg")
 
@@ -38,6 +38,7 @@ w <- mat2listw(w2,style="W")
 pool = plm(gdp ~ kj + l + ks + pe + inex + new_inc + pri_en + high_stu, data=datap, model="pooling")
 summary(pool)
 #个体效应和时间效应
+#系数
 plmtest(pool, effect="twoways", type="honda")
 #FE
 FEeffect = plm(gdp ~ kj + l + ks + pe + inex + new_inc + pri_en + high_stu, data=datap, model="within", effect="individual")

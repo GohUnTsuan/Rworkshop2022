@@ -401,7 +401,103 @@ quakes %>%
 # user2020
 ```{r}
 # https://edzer.github.io/UseR2020/
+if (!require(remotes))
+  install.packages("remotes")
+remotes::install_github("r-spatial/stars")
 
+install.packages("starsdata", repos = "http://pebesma.staff.ifgi.de", type = "source")
+
+library(stars)
+
+library(ggplot2)
+data("Produc", package ='plm')
+ggplot(Produc) + geom_raster(aes(y = state, x = year, fill = pcap))
+
+s = st_as_stars(Produc, y_decreasing = FALSE)
+s = st_apply(s, 1, function(x) x/mean(x)) %>% 
+  st_set_dimensions(names = c('year','state'))
+s
+
+pr = as.data.frame(s)
+head(pr)
+ggplot(pr) + geom_raster(aes(y = state, x = year, fill = pcap))
+
+library(maps)
+states.m = map('state',plot = FALSE, fill = TRUE)
+st = st_as_sf(states.m)[-8,]
+match(tolower(st_get_dimension_values(s, 'state')), sub(' ', '_',st$ID))
+
+(s_sf = st_set_dimensions(s, 'state', values = st_geometry(st)))
+
+s_sf_y1 = s_sf[,1]
+(s_sf_y1 = adrop(s_sf_y1))
+
+sf = st_as_sf(s_sf_y1)
+plot(sf)
+
+# 北卡罗来纳州 SIDS
+nc <-  read_sf(system.file('gpkg/nc.gpkg', package = 'sf'))
+nc.df <- st_set_geometry(nc, NULL)
+head(nc.df)
+
+mat <- as.matrix(nc.df[c("BIR74", "SID74", "NWBIR74", "BIR79", "SID79", "NWBIR79")])
+dim(mat) = c(county = 100, var =3 , year = 2)
+dimnames(mat) = list(county = nc$NAME, var = c("BIR", "SID", "NWBIR"), year = c(1974, 1979))
+nc.st <- st_as_stars(pop = mat)
+nc.geom <- st_set_dimensions(nc.st, 1, st_geometry(nc))
+
+plot(st_apply(nc.geom, c(1,2), sum), key.pos = 4)
+
+
+nc.sum <- sapply(split(nc.geom,2), sum)
+nc.su
+IR <- nc.sum[2]/nc.sum[1]
+nc.SIR <- st_apply(nc.geom, c(1,3), function(x) (x[2]/x[1]/IR))
+plot(nc.SIR, breaks = c(0,.25,.5,.75,.9,1.1,1.5,2.5,3.5,5),
+     pal = rev(RColorBrewer::brewer.pal(9, "RdBu")))
+
+
+g <- read_stars(system.file('external/test.grd', package = 'raster'))
+plot(g, col = viridis::viridis(11), breaks = "equal")
+
+(g.sf = st_as_sf(g, na.rm = FALSE))
+plot(g.sf, border = 'grey',  pal = viridis::viridis(9), nbreaks = 10)
+
+r <- read_stars(system.file('pictures/Rlogo.jpg', package = 'rgdal'))
+
+plot(r, breaks  ='equal')
+
+
+(r.rgb = st_rgb(r))
+
+
+r.rgb[[1]][1:3,1]
+
+plot(r.rgb)
+
+L7file <- system.file('tif/L7_ETMs.tif', package = 'stars')
+(L7 <- read_stars(L7file))
+
+plot(L7)
+
+plot(L7, join_zlim = FALSE)
+
+par(mfrow = c(1,2))
+plot(L7, rgb = c(3,2,1), reset = FALSE, main = 'RGB')
+plot(L7, rgb = c(4,3,2), main = "False color (NIR-R-G)")
+
+bb <- st_bbox(c(xmin = -10 , xmax = 20 ,ymin = 40, ymax = 60), crs = 4326)
+(x = st_as_stars(bb, dx = 1, dy = 1))
+
+library(rnaturalearth)
+ne <- ne_countries(returnclass =  'sf', continent = 'europe') %>% 
+  st_set_precision(1e8)
+
+ne$pop_dens <- units::set_units(ne$pop_est  / st_area(ne), 1/(km^2))
+plot(ne['pop_dens'], reset = FALSE, extent = bb)
+
+pop <- st_rasterize(ne['pop_dens'],x)
+plot(st_as_sf(pop, na.rm = FALSE), add = TRUE, border = 'grey')
 ```
 
 
