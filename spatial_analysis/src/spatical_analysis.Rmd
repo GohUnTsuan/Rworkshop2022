@@ -498,8 +498,156 @@ plot(ne['pop_dens'], reset = FALSE, extent = bb)
 
 pop <- st_rasterize(ne['pop_dens'],x)
 plot(st_as_sf(pop, na.rm = FALSE), add = TRUE, border = 'grey')
+
+(pop.3035 <- st_transform(pop,3035))
+ne.3035 <- st_transform(ne,3035)
+plot(pop.3035, border  ='grey', reset = FALSE)
+plot(st_geometry(ne.3035), add =TRUE, border = 'yellow')
+
+targe_grid <- st_as_stars(st_bbox(pop.3035))
+w <- st_warp(pop, targe_grid)
+plot(w, border = 'grey', reset = FALSE)
+plot(st_geometry(ne.3035), add = TRUE, border = 'yellow')
+
+(w <- system.file("nc/bcsd_obs_1999.nc", package = "stars") %>%
+    read_stars("data/full_data_daily_2013.nc"))
+
+file_list = system.file(paste0("netcdf/", x), package = "starsdata")
+(y = read_stars(file_list, quiet = TRUE))
 ```
 
+
+# spatialreg
+```{r}
+library(spatialreg)
+library(sf)
+columbus <- st_read(system.file("shapes/columbus.shp", package="spData")[1])
+library(spdep)
+
+nb_q <- spdep::poly2nb(columbus)
+attr(nb_q, 'region.id')
+
+is.symmetric.nb(nb_q)
+
+col2 <- droplinks(nb_q, 21)
+nb_q[[21]]
+
+col2
+
+is.symmetric.nb(col2)
+
+coords <- st_coordinates(st_centroid(st_geometry(columbus)))
+plot(nb_q, coords, col="grey")
+plot(col2, coords, add=TRUE)
+
+nb_B <- nb2listw(col2, style="B", zero.policy=TRUE)
+nb_B$style
+
+library(spatialreg)
+library(Matrix)
+B <- as(nb_B, "CsparseMatrix")
+all(B == t(B))
+
+rho <- 0.1
+sum(log(1 - rho * spatialreg::eigenw(nb_B)))
+
+n <- nrow(B)
+I <- Diagonal(n)
+class(I - rho * B)
+
+nW <- -B
+nChol <- Cholesky(nW, Imult=8)
+n * log(rho) + (2 * c(determinant(update(nChol, nW, 1/rho))$modulus))
+
+nb_W <- nb2listw(col2, style="W", zero.policy=TRUE)
+W <- as(nb_W, "CsparseMatrix")
+str(W)
+
+class(col2)
+```
+
+
+# spatial reg
+```{r}
+library(sf)
+library(spData)
+boston_506 <- st_read(system.file("shapes/boston_tracts.shp", package = "spData")[1])
+boston_506$CHAS <- as.factor(boston_506$CHAS)
+
+nb_q <- spdep::poly2nb(boston_506)
+lw_q <- spdep::nb2listw(nb_q, style = "W")
+
+boston_506$CHAS <- as.factor(boston_506$CHAS)
+boston_489 <- boston_506[!is.na(boston_506$median),]
+nb_q_489 <- spdep::poly2nb(boston_489)
+lw_q_489 <- spdep::nb2listw(nb_q_489, style = "W", zero.policy = TRUE)
+
+
+agg_96 <- list(as.character(boston_506$NOX_ID))
+boston_96 <- aggregate(boston_506[, "NOX_ID"], by = agg_96, unique)
+nb_q_96 <- spdep::poly2nb(boston_96)
+lw_q_96 <- spdep::nb2listw(nb_q_96)
+boston_96$NOX <- aggregate(boston_506$NOX, agg_96, mean)$x
+boston_96$CHAS <- aggregate(as.integer(boston_506$CHAS)-1, agg_96, max)$x
+
+nms <- names(boston_506)
+ccounts <- 23:31
+for (nm in nms[c(22, ccounts, 36)]) {
+  boston_96[[nm]] <- aggregate(boston_506[[nm]], agg_96, sum)$x
+}
+br2 <- c(3.50, 6.25, 8.75, 12.50, 17.50, 22.50, 30.00, 42.50, 60.00)*1000
+counts <- as.data.frame(boston_96)[, nms[ccounts]]
+f <- function(x) matrixStats::weightedMedian(x = br2, w = x, interpolate = TRUE)
+boston_96$median <- apply(counts, 1, f)
+is.na(boston_96$median) <- boston_96$median > 50000
+summary(boston_96$median)
+
+boston_94 <- boston_96[!is.na(boston_96$median),]
+nb_q_94 <- spdep::subset.nb(nb_q_96, !is.na(boston_96$median))
+lw_q_94 <- spdep::nb2listw(nb_q_94, style="W")
+
+boston_94a <- aggregate(boston_489[,"NOX_ID"], list(boston_489$NOX_ID), unique)
+nb_q_94a <- spdep::poly2nb(boston_94a)
+NOX_ID_no_neighs <- boston_94a$NOX_ID[which(spdep::card(nb_q_94a) == 0)]
+boston_487 <- boston_489[is.na(match(boston_489$NOX_ID, NOX_ID_no_neighs)),]
+boston_93 <- aggregate(boston_487[, "NOX_ID"], list(ids = boston_487$NOX_ID), unique)
+row.names(boston_93) <- as.character(boston_93$NOX_ID)
+nb_q_93 <- spdep::poly2nb(boston_93, row.names=unique(as.character(boston_93$NOX_ID)))
+
+form <- formula(log(median) ~ CRIM + ZN + INDUS + CHAS + I((NOX*10)^2) + I(RM^2) +AGE + log(DIS) + log(RAD) + TAX + PTRATIO + I(BB/100) + log(I(LSTAT/100)))
+
+
+
+library(spatialreg)
+eigs_489 <- eigenw(lw_q_489)
+SDEM_489 <- errorsarlm(form, data = boston_489, listw = lw_q_489, Durbin = TRUE, 
+                       zero.policy = TRUE, control = list(pre_eig = eigs_489))
+SEM_489 <- errorsarlm(form, data = boston_489, listw = lw_q_489, 
+                      zero.policy = TRUE, control = list(pre_eig = eigs_489))
+
+cbind(data.frame(model=c("SEM", "SDEM")), 
+      rbind(broom::tidy(Hausman.test(SEM_489)), 
+            broom::tidy(Hausman.test(SDEM_489))))[,1:4]
+
+eigs_94 <- eigenw(lw_q_94)
+SDEM_94 <- errorsarlm(form, data=boston_94, listw=lw_q_94, Durbin=TRUE,
+                      control=list(pre_eig=eigs_94))
+SEM_94 <- errorsarlm(form, data=boston_94, listw=lw_q_94, control=list(pre_eig=eigs_94))
+
+cbind(data.frame(model=c("SEM", "SDEM")), 
+      rbind(broom::tidy(Hausman.test(SEM_94)), 
+            broom::tidy(Hausman.test(SDEM_94))))[, 1:4]
+
+SLX_489 <- lmSLX(form, data = boston_489, listw = lw_q_489, zero.policy = TRUE)
+broom::tidy(lmtest::lrtest(SLX_489, SDEM_489))
+
+SLX_489w <- lmSLX(form, data = boston_489, listw = lw_q_489, weights = units, zero.policy = TRUE)
+SDEM_489w <- errorsarlm(form, data = boston_489, listw = lw_q_489, Durbin  =TRUE,
+    weights = units, zero.policy = TRUE, control = list(pre_eig = eigs_489))
+broom::tidy(lmtest::lrtest(SLX_489w, SDEM_489w))
+
+
+```
 
 # ref
 ```{r, echo=FALSE}
