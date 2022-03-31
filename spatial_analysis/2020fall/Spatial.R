@@ -1,7 +1,5 @@
 
 
-#老铁们记得提前装包仔咩
-#读取权重矩阵和数据
 #
 install.packages("readxl")
 #maps
@@ -250,6 +248,7 @@ FEindivslag = spml(gdp ~ kj + l + ks + pe + inex + new_inc + pri_en + high_stu, 
 summary(FEindivslag)
 ##效应分解
  set.seed(12345)
+ library(spatialreg)
  imslm <- impacts(FEindivslag, listw=w, time = 1000)
  summary(imslm, zstats=TRUE, short=F)
 ## SLM 模型 + 时空双固定效应
@@ -271,7 +270,7 @@ summary(FEindivslag)
                               high_stu, data = datasp, listw = w, model="within", effect="individual", lag=TRUE, spatial.error="none")
  summary(FEindivDurbin)
  ## SDM + 时空双固定效应
- FEDurbin = spml(gdp ~ kj + l + ks + pe + inex + new_inc + pri_en + high_stu +
+ FEDurbin = spml(gdp ~  kj + l + ks + pe + inex + new_inc + pri_en + high_stu +
                          wtx_kj + wtx_l + wtx_ks + wtx_pe + wtx_inex + wtx_new_inc + wtx_pri_en
                  + wtx_high_stu, data=datasp, listw=w, model="within", effect="twoways", lag=TRUE, spatial.error="none")
  summary(FEDurbin)
