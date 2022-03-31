@@ -4,3 +4,15 @@
 .Ruserdata
 
 Rworkshop2022.Rproj
+
+*.m
+
+spatial_analysis/2020fall/data/matlab/SImulations_matlab/
+
+spatial_analysis/2020fall/data/matlab/Spatial Probit/
+
+spatial_analysis/2020fall/data/matlab/Spatial Tobit/
+
+spatial_analysis/data/
+
+spatial_analysis/2020fall/data/
